@@ -6,10 +6,12 @@ Ein smartes JavaScript-Widget für Moodle, das den Lernfortschritt aus einer **L
 
 ## ✨ Features
 
-* **Nahtlose Integration:** Läuft als HTML-Block oder in Textfeldern.
+* **Nahtlose Integration in die Blockleiste:** Läuft als HTML-Block in der Blockleiste.
 * **Auto-Erkennung:** Identifiziert die aktuelle Aufgabe automatisch anhand des Seitentitels oder Inhalts.
 * **Zwei-Wege-Sync:** Liest Daten aus der Moodle-Datenbank und speichert Status-Updates via `fetch` (kein Neuladen nötig).
 * **Teacher-Zone:** Kompakte Auswertungs-Sektion für Lehrkräfte (nur sichtbar, wenn Bearbeitungsrechte vorliegen).
+* * **SuS-Zone:** Kompakte Auswertungs-Sektion für SuS in der Blockleiste-Lernlandkarte.
+* * **Aktivitätsseiten-Block bei SuS:** zeigt die zur Aktivität passende Ampel zum Feedback absenden.
 * **Offline-Fallback:** Nutzt `localStorage` für sofortiges visuelles Feedback.
 
 ---
@@ -27,31 +29,31 @@ Erstelle eine Datenbank mit zwei Feldern vom Typ **"Kurzer Text"**:
 Kopiere diesen Code in die **Listenansicht** deiner Datenbank, damit das Widget die Daten auslesen kann.
 
 **Tabellen-Kopf (Header):**
+
 ```html
 <table class="table table-striped">
   <thead>
     <tr><th>Schüler/in</th><th>Aufgabe</th><th>Status</th></tr>
   </thead>
   <tbody>
-ˋˋˋ
+```
 
-ˋˋˋhtml
-Wiederholter Bereich (Repeated entry):
+**Wiederholter Bereich (Repeated entry):**
+```html
 <tr class="db-reihe">
   <td class="db-user">##user##</td>
   <td class="db-task">[[Aufgabe]]</td>
   <td class="db-status">[[Status]]</td>
 </tr>
-ˋˋˋ
+```
 
-ˋˋˋhtml
-
-Tabellen-Fuß (Footer):
+**Tabellen-Fuß (Footer):**
+```html
   </tbody>
 </table>
-ˋˋˋ
+```
 
-🔍 Konfiguration & Installation
+## 🔍 Konfiguration & Installation
 
 1. IDs ermitteln
 Du benötigst vier spezifische IDs aus deinem Moodle-Kurs:
@@ -64,12 +66,14 @@ Du benötigst vier spezifische IDs aus deinem Moodle-Kurs:
 2. Skript anpassen
 Ersetze die Werte im APP_CONFIG Block am Anfang deines Codes:
 
+```html
 window.APP_CONFIG = {
     DATENBANK_MODUL_ID: "XXXXXXX",  // Deine Datenbank-ID
     LERNLANDKARTE_ID: "XXXXXXX",    // Deine Landkarten-ID
     FELD_AUFGABE: "field_XXXXXXX",  // Deine Feld-ID (Aufgabe)
     FELD_STATUS: "field_XXXXXXX"    // Deine Feld-ID (Status)
 };
+```
 
 3. Einbetten in Moodle
  * Kopiere den gesamten HTML/Script-Code.
