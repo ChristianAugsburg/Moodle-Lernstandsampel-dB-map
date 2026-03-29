@@ -1,4 +1,4 @@
-# 🚦 Moodle Lernstands-Ampel (Widget)
+# 🚦 Moodle Lernstands-Ampel (Smart Widget v2)
 
 Ein smartes JavaScript-Widget für Moodle, das den Lernfortschritt aus einer **Lernlandkarte** visualisiert und direkt in ein **Datenbank-Modul** zurückschreibt. Es ermöglicht Schülern eine schnelle Status-Rückmeldung (🔴, 🟠, 🟢) direkt im Kurs-Interface, ohne die Seite verlassen zu müssen.
 
@@ -13,6 +13,11 @@ Ein smartes JavaScript-Widget für Moodle, das den Lernfortschritt aus einer **L
 * **SuS-Zone:** Kompakte Auswertungs-Sektion für SuS in der Blockleiste-Lernlandkarte.
 * **Aktivitätsseiten-Block bei SuS:** zeigt die zur Aktivität passende Ampel zum Feedback absenden.
 * **Offline-Fallback:** Nutzt `localStorage` für sofortiges visuelles Feedback.
+* 
+## ✨ Neu in dieser Version
+* **Smart Sort:** Aufgaben werden automatisch alphabetisch und numerisch sortiert (z. B. kommt "Aufgabe 2" vor "Aufgabe 10").
+* **Easy Config:** Du musst nur noch **zwei IDs** (Datenbank & Landkarte) im Skript eintragen.
+* **Auto-Discovery:** Das Skript scannt den Kurs und bietet dir die passenden IDs per Klick zum Kopieren an.
 
 ---
 
@@ -56,39 +61,20 @@ Kopiere diesen Code in die **Listenansicht** deiner Datenbank, damit das Widget 
 </table>
 ```
 
-## 🔍 Konfiguration & Installation
+## 🔍 🚀 Installation & Schnell-Konfiguration
+* Kopiere den Code aus widget.html in einen Moodle-Textblock (HTML-Modus <> nutzen).
+* Speichere den Block.
+* IDs eintragen (Der "Lehrer-Trick"):
+* Das Widget zeigt dir als Lehrer automatisch eine blaue Box: "IDs gefunden!".
+* Klicke auf den angezeigten Code, um die zwei benötigten Zeilen in die Zwischenablage zu kopieren.
+* Bearbeite den Block erneut und ersetze die leeren Zeilen im window.APP_CONFIG Bereich durch die kopierten IDs.
+* Fertig! Das Widget ist nun für alle Schüler einsatzbereit.
 
-1. IDs ermitteln
-Du benötigst vier spezifische IDs aus deinem Moodle-Kurs:
- * DATENBANK_MODUL_ID: Die Zahl am Ende der URL deiner Datenbank (.../mod/data/view.php?id=XXXX).
- * LERNLANDKARTE_ID: Die Zahl am Ende der URL deiner Landkarte (.../mod/learningmap/view.php?id=XXXX).
- * FELD_IDs ermitteln: * Gehe in der Datenbank auf den Reiter "Eintrag hinzufügen".
-   * Klicke mit der rechten Maustaste in das Eingabefeld für "Aufgabe" -> "Untersuchen".
-   * Suche im HTML-Code nach name="field_12345". Kopiere diesen Wert für FELD_AUFGABE und FELD_STATUS.
-
-2. Skript anpassen
-Ersetze die Werte im APP_CONFIG Block am Anfang deines Codes:
-
-```html
-window.APP_CONFIG = {
-    DATENBANK_MODUL_ID: "XXXXXXX",  // Deine Datenbank-ID
-    LERNLANDKARTE_ID: "XXXXXXX",    // Deine Landkarten-ID
-    FELD_AUFGABE: "field_XXXXXXX",  // Deine Feld-ID (Aufgabe)
-    FELD_STATUS: "field_XXXXXXX"    // Deine Feld-ID (Status)
-};
-```
-
-3. Einbetten in Moodle
- * Kopiere den gesamten HTML/Script-Code.
- * Erstelle einen Moodle-Block vom Typ "Textblock".
- * Schalte den Moodle-Editor auf HTML-Modus (<> Symbol) um.
- * Füge den Code ein und speichere.
-
-📖 Funktionsweise
+## 📖 Funktionsweise
  * Initialisierung: Das Skript lädt beim Seitenaufruf alle bisherigen Einträge aus der Datenbank.
  * Mapping: Es scannt die Lernlandkarte im Hintergrund ab, um alle verfügbaren Aufgabennamen zu kennen.
  * Kontext-Logik:
- * Auf der Lernlandkarte zeigt das Widget eine komplette Liste aller Aufgaben als Übersicht.
+   * Auf der Lernlandkarte zeigt das Widget eine komplette Liste aller Aufgaben als Übersicht.
    * In einer Aktivität (z.B. Test/Seite) vergleicht das Skript den Seitentitel mit den Aufgabennamen und zeigt nur die passende "Fokus-Ampel".
  * Speichervorgang: Beim Klick auf 🔴, 🟠 oder 🟢 wird im Hintergrund ein Formular an die Moodle-Datenbank gesendet.
 
