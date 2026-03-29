@@ -97,3 +97,9 @@ Das Widget erkennt automatisch Bearbeitungsrechte. Über den Button "👨‍🏫
 
 Dieses Projekt ist unter der GNU General Public License v3.0 (GPL-3.0) lizenziert.
 
+---
+
+## 👤 Kontakt & Support
+Erstellt von **Christian_Augsburg**
+🐘 Mastodon: [@Christian_Augsburg@mastodon.social](https://mastodon.social/@Christian_Augsburg)
+
