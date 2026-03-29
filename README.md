@@ -13,7 +13,7 @@ Ein smartes JavaScript-Widget für Moodle, das den Lernfortschritt aus einer **L
 * **SuS-Zone:** Kompakte Auswertungs-Sektion für SuS in der Blockleiste-Lernlandkarte.
 * **Aktivitätsseiten-Block bei SuS:** zeigt die zur Aktivität passende Ampel zum Feedback absenden.
 * **Offline-Fallback:** Nutzt `localStorage` für sofortiges visuelles Feedback.
-* 
+  
 ## ✨ Neu in dieser Version
 * **Smart Sort:** Aufgaben werden automatisch alphabetisch und numerisch sortiert (z. B. kommt "Aufgabe 2" vor "Aufgabe 10").
 * **Easy Config:** Du musst nur noch **zwei IDs** (Datenbank & Landkarte) im Skript eintragen.
