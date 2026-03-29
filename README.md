@@ -10,8 +10,8 @@ Ein smartes JavaScript-Widget für Moodle, das den Lernfortschritt aus einer **L
 * **Auto-Erkennung:** Identifiziert die aktuelle Aufgabe automatisch anhand des Seitentitels oder Inhalts.
 * **Zwei-Wege-Sync:** Liest Daten aus der Moodle-Datenbank und speichert Status-Updates via `fetch` (kein Neuladen nötig).
 * **Teacher-Zone:** Kompakte Auswertungs-Sektion für Lehrkräfte (nur sichtbar, wenn Bearbeitungsrechte vorliegen).
-* * **SuS-Zone:** Kompakte Auswertungs-Sektion für SuS in der Blockleiste-Lernlandkarte.
-* * **Aktivitätsseiten-Block bei SuS:** zeigt die zur Aktivität passende Ampel zum Feedback absenden.
+* **SuS-Zone:** Kompakte Auswertungs-Sektion für SuS in der Blockleiste-Lernlandkarte.
+* **Aktivitätsseiten-Block bei SuS:** zeigt die zur Aktivität passende Ampel zum Feedback absenden.
 * **Offline-Fallback:** Nutzt `localStorage` für sofortiges visuelles Feedback.
 
 ---
@@ -90,8 +90,10 @@ window.APP_CONFIG = {
  * Speichervorgang: Beim Klick auf 🔴, 🟠 oder 🟢 wird im Hintergrund ein Formular an die Moodle-Datenbank gesendet.
 
 👨‍🏫 Auswertung für Lehrkräfte
+
 Das Widget erkennt automatisch Bearbeitungsrechte. Über den Button "👨‍🏫 Auswertung" erhältst du eine Live-Übersicht der Schülerergebnisse direkt im Kurs-Interface.
 
 📄 Lizenz
+
 Dieses Projekt ist unter der GNU General Public License v3.0 (GPL-3.0) lizenziert.
 
