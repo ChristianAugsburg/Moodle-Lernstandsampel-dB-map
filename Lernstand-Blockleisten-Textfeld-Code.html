@@ -1,0 +1,148 @@
+<p>
+<script>
+  window.APP_CONFIG = {
+      DATENBANK_MODUL_ID: "89697487",  
+      LERNLANDKARTE_ID: "82310959",    
+      FELD_AUFGABE: "field_1030105",   
+      FELD_STATUS: "field_1030108"     
+  };
+</script>
+</p>
+<div id="status-accordion" class="card shadow-sm border-0 mb-3" style="border-left: 5px solid #0055a5 !important; background: #fff;">
+<div class="card-header bg-white p-0">
+<div class="w-100 text-start d-flex justify-content-between align-items-center py-2 px-3"><span class="text-primary fw-bold" style="font-size: 0.9rem;">🚀 Mein Lernfortschritt</span> <span id="load-info" class="badge bg-light text-muted border" style="font-size: 0.7rem;">Suche...</span></div>
+</div>
+<div class="card-body p-0">
+<div id="dashboard-content" class="list-group list-group-flush"></div>
+<div id="teacher-zone" class="p-2 bg-light border-top" style="display: none;"><button onclick="toggleTeacherView()" class="btn btn-sm btn-outline-secondary w-100">👨‍🏫 Auswertung</button>
+<div id="teacher-auswertung" class="mt-2" style="display: none;"></div>
+</div>
+</div>
+</div>
+<p>
+<script>
+(function() {
+  const CONFIG = window.APP_CONFIG;
+  window.teacherData = {}; 
+
+  async function loadDashboard() {
+    const content = document.getElementById('dashboard-content');
+    const info = document.getElementById('load-info');
+    let myLatest = {};
+
+    try {
+        // 1. DB DATEN HOLEN
+        const dbRes = await fetch(`${window.location.origin}/mod/data/view.php?id=${CONFIG.DATENBANK_MODUL_ID}`);
+        const dbHtml = await dbRes.text();
+        const dbDoc = new DOMParser().parseFromString(dbHtml, 'text/html');
+        
+        dbDoc.querySelectorAll('.db-reihe').forEach(row => {
+            const user = row.querySelector('.db-user')?.innerText.trim();
+            const task = row.querySelector('.db-task')?.innerText.trim();
+            const status = row.querySelector('.db-status')?.innerText.trim();
+            if (user && task) {
+                if (!window.teacherData[user]) window.teacherData[user] = {};
+                window.teacherData[user][task] = status;
+                myLatest[task] = status;
+            }
+        });
+
+        if (dbDoc.querySelector('a[href*="templates.php"]')) document.getElementById('teacher-zone').style.display = 'block';
+
+        // 2. LANDKARTE HOLEN
+        const mapRes = await fetch(`${window.location.origin}/mod/learningmap/view.php?id=${CONFIG.LERNLANDKARTE_ID}`);
+        const mapHtml = await mapRes.text();
+        const mapDoc = new DOMParser().parseFromString(mapHtml, 'text/html');
+        
+        const places = mapDoc.querySelectorAll('.learningmap-place.learningmap-reachable, .learningmap-place.learningmap-visited');
+        let allTasks = [];
+        places.forEach(p => {
+            const txt = mapDoc.querySelector('#title'+p.id)?.textContent || mapDoc.querySelector('#text'+p.id)?.textContent;
+            if (txt && txt.trim().length > 2) {
+                let name = txt.trim().split('\n')[0];
+                if (!allTasks.includes(name)) allTasks.push(name);
+            }
+        });
+
+        // 3. LOGIK: LANDKARTE VS. EINZELAUFGABE
+        const isMap = window.location.href.includes('learningmap') || window.location.href.includes(CONFIG.LERNLANDKARTE_ID);
+        let tasksToShow = [];
+
+        if (isMap) {
+            tasksToShow = allTasks;
+            info.innerText = "Alle (" + tasksToShow.length + ")";
+        } else {
+            const searchArea = (document.body.innerText.substring(0, 1500) + document.title).toLowerCase();
+            const found = allTasks.find(t => searchArea.includes(t.toLowerCase()));
+            tasksToShow = found ? [found] : [];
+            info.innerText = found ? "Fokus" : "Info";
+        }
+
+        // 4. HTML BAUEN & ANZEIGEN
+        if (tasksToShow.length === 0) {
+            content.innerHTML = "<div class='p-3 small text-muted'>Übersicht auf der Landkarte verfügbar.</div>";
+        } else {
+            let html = "";
+            tasksToShow.forEach(txt => {
+                const status = myLatest[txt] || localStorage.getItem('moodle_status_' + CONFIG.DATENBANK_MODUL_ID + '_' + txt);
+                const op = (s, target) => (s ? (s === target ? '1' : '0.2') : '1');
+                
+                html += `
+                  <div class="list-group-item d-flex align-items-center justify-content-between px-3 py-2 border-0 border-bottom">
+                    <div style="font-size:0.75rem; font-weight:bold; flex:1; padding-right:5px; line-height:1.2;">${txt}</div>
+                    <div class="btn-group">
+                      <button onclick="save('${txt}','🔴',this)" class="btn btn-sm border" style="background:${status==='🔴'?'#f8d7da':'#fff'}; opacity:${op(status,'🔴')};">🔴</button>
+                      <button onclick="save('${txt}','🟠',this)" class="btn btn-sm border" style="background:${status==='🟠'?'#fff3cd':'#fff'}; opacity:${op(status,'🟠')};">🟠</button>
+                      <button onclick="save('${txt}','🟢',this)" class="btn btn-sm border" style="background:${status==='🟢'?'#d4edda':'#fff'}; opacity:${op(status,'🟢')};">🟢</button>
+                    </div>
+                  </div>`;
+            });
+            content.innerHTML = html;
+        }
+
+    } catch (e) { info.innerText = "Fehler"; }
+  }
+
+  window.save = async function(task, emo, btn) {
+    const btns = btn.parentElement.querySelectorAll('button');
+    btns.forEach(b => b.style.opacity = "0.2");
+    btn.innerHTML = "⏳"; btn.style.opacity = "1";
+    try {
+        const res = await fetch(`${window.location.origin}/mod/data/view.php?id=${CONFIG.DATENBANK_MODUL_ID}`);
+        const html = await res.text();
+        const dId = html.match(/[?&]d=(\d+)/)[1];
+        const fRes = await fetch(`${window.location.origin}/mod/data/edit.php?d=${dId}`);
+        const fHtml = await fRes.text();
+        const fDoc = new DOMParser().parseFromString(fHtml, 'text/html');
+        const form = fDoc.querySelector('form[action*="edit.php"]');
+        const fd = new FormData();
+        form.querySelectorAll('input[type="hidden"]').forEach(i => fd.append(i.name, i.value));
+        fd.append(CONFIG.FELD_AUFGABE, task);
+        fd.append(CONFIG.FELD_STATUS, emo);
+        fd.append('saveandview', 'Speichern');
+        await fetch(`${window.location.origin}/mod/data/edit.php?d=${dId}`, { method: 'POST', body: fd });
+        localStorage.setItem('moodle_status_' + CONFIG.DATENBANK_MODUL_ID + '_' + task, emo);
+        btn.innerHTML = emo;
+        btn.style.background = (emo === '🟢' ? '#d4edda' : (emo === '🔴' ? '#f8d7da' : '#fff3cd'));
+    } catch (e) { btn.innerHTML = "❌"; }
+  };
+
+  window.toggleTeacherView = function() {
+      const div = document.getElementById('teacher-auswertung');
+      div.style.display = div.style.display === 'none' ? 'block' : 'none';
+      let h = '<div class="list-group mt-2">';
+      for (let u in window.teacherData) {
+          h += `<div class="list-group-item bg-primary text-white p-1 px-2 small">${u}</div>`;
+          for (let t in window.teacherData[u]) {
+              h += `<div class="list-group-item d-flex justify-content-between p-1 px-2 border-0 border-bottom" style="font-size:0.7rem;"><span>${t}</span><span>${window.teacherData[u][t]}</span></div>`;
+          }
+      }
+      div.innerHTML = h + '</div>';
+  };
+
+  // Sofort laden UND nach 2 Sekunden nochmal drüberbügeln, falls Moodle was überschrieben hat
+  setTimeout(loadDashboard, 500);
+  setTimeout(loadDashboard, 2500); 
+})();
+</script>
+</p>
