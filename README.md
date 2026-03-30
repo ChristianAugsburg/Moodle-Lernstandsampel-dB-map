@@ -25,6 +25,7 @@ Ein smartes JavaScript-Widget für Moodle, das den Lernfortschritt aus einer **L
 ⚠️Aktivität Datenbank Einstellungen  - Freigabe JA aktivieren nicht vergessen.⚠️
 
 Damit das Widget funktioniert, müssen eine **Lernlandkarte** und ein **Datenbank-Modul** im Kurs existieren.
+Datenbank Listenansicht auf 1000 Einträge pro Seite, Zeit aufsteigend stellen und speichern.
 
 BYCS-LK können die Vorlage "Moodle-Widget Lernfortschritt-Ampel (🔴🟠🟢)" nehmen 
 
