@@ -132,8 +132,11 @@
         let tasksToShow = isMap ? allTasks : [];
 
         if (!isMap) {
-            const searchArea = (document.body.innerText.substring(0, 1500) + document.title).toLowerCase();
-            const found = allTasks.find(t => searchArea.includes(t.toLowerCase()));
+           // Nur Titel und Hauptüberschrift durchsuchen, da das Navigationsmenü im body sonst alle Aufgaben auflistet
+            const pageHeading = document.querySelector('h1') ? document.querySelector('h1').innerText : "";
+            const searchArea = (document.title + " " + pageHeading).toLowerCase();
+            // Längsten passenden Treffer nehmen, um Fehler bei ähnlichen Aufgabennamen zu vermeiden
+            const found = allTasks.filter(t => searchArea.includes(t.toLowerCase())).sort((a, b) => b.length - a.length)[0];
             tasksToShow = found ? [found] : [];
         }
 
