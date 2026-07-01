@@ -1,11 +1,11 @@
 <p>
     <script>
         // =========================================================================
-        // KONFIGURATION (GANZ OBEN – HIER EDITIEREN wenn Lernampel konfiguriert.)
+        // KONFIGURATION (GANZ OBEN – HIER EDITIEREN)
         // =========================================================================
         window.APP_CONFIG = {
-            DATENBANK_MODUL_ID: "", // Deine Ampel-Datenbank-ID
-            LERNLANDKARTE_ID: "",   // Deine Lernlandkarten-ID
+            DATENBANK_MODUL_ID: " ", // Deine Ampel-Datenbank-ID (Leer lassen "", falls keine vorhanden)
+            LERNLANDKARTE_ID: " ",   // Deine Lernlandkarten-ID
             FELD_AUFGABE: "Aufgabe",
             FELD_STATUS: "Status"
         };
@@ -42,7 +42,6 @@
 <p>
     <script>
         (function () {
-            // Holt sich die Konfigurationsdaten von ganz oben
             const CONFIG = window.APP_CONFIG;
             window.teacherDataMain = {};
             let hasDatabase = !!(CONFIG && CONFIG.DATENBANK_MODUL_ID && CONFIG.DATENBANK_MODUL_ID.trim() !== "");
@@ -82,105 +81,113 @@
                 return !!CONFIG.LERNLANDKARTE_ID;
             }
 
-            // Vollständige Suchlogik (Places & Paths)
+            // Targetierte Link- und Element-Suchlogik für mod_learningmap
             const extractTasksFromMap = (mapDoc) => {
                 if (!mapDoc) return [];
                 const placeMap = {};
 
-                // 1. Plätze auslesen
+                // 1. Direktes Auslesen der SVG-Strukturen über die Kreise (Places)
                 try {
                     const places = mapDoc.querySelectorAll('.learningmap-place');
                     places.forEach(p => {
                         if (!p) return;
                         const matchId = p.id ? p.id.match(/\d+/) : null;
-                        const numericId = matchId ? matchId[0] : '';
-                        if (!numericId) return;
+                        const id = matchId ? matchId[0] : p.id;
+                        if (!id) return;
 
-                        const linkEl = p.closest('a') || p.querySelector('a');
-                        let link = linkEl ? linkEl.getAttribute('href') : (p.getAttribute('href') || p.getAttribute('data-url') || '');
-                        if (link && !link.startsWith('http')) link = window.location.origin + (link.startsWith('/') ? '' : '/') + link;
+                        const parentA = p.closest('a');
+                        let link = '';
+                        let name = '';
 
-                        let txt = '';
-                        let titleEl = mapDoc.getElementById('title-' + numericId) ||
-                                      mapDoc.getElementById('text-' + numericId) ||
-                                      mapDoc.getElementById('title' + numericId) ||
-                                      mapDoc.getElementById('text' + numericId) ||
-                                      mapDoc.getElementById('title-place-' + numericId) ||
-                                      mapDoc.getElementById('text-place-' + numericId);
+                        if (parentA) {
+                            // Link-Extraktion unter Berücksichtigung des SVG-Namespace (xlink:href)
+                            const h = parentA.getAttribute('xlink:href') || parentA.getAttribute('href') || '';
+                            if (h && !h.includes('/mod/learningmap/view.php?id=' + CONFIG.LERNLANDKARTE_ID)) {
+                                link = h;
+                            }
 
-                        if (!titleEl) titleEl = p.querySelector('title') || p.querySelector('text');
-                        if (titleEl) txt = titleEl.textContent;
-                        else txt = p.getAttribute('title') || p.getAttribute('data-original-title') || p.getAttribute('aria-label') || '';
+                            // Namens-Extraktion direkt aus den Kind-Elementen des Parent-Links
+                            const titleEl = parentA.querySelector('title');
+                            const textEl = parentA.querySelector('text');
+                            if (titleEl && titleEl.textContent.trim()) {
+                                name = titleEl.textContent.trim().split('\n')[0];
+                            } else if (textEl && textEl.textContent.trim()) {
+                                name = textEl.textContent.trim().split('\n')[0];
+                            }
+                        }
 
-                        const name = txt ? txt.trim().split('\n')[0] : '';
+                        // Erweitertes ID-Fallback falls die Benennung außerhalb des Link-Baums liegt
+                        if (!name) {
+                            const fallbackTitle = mapDoc.getElementById('titlep' + id) || 
+                                                  mapDoc.getElementById('textp' + id) ||
+                                                  mapDoc.getElementById('title-' + id) || 
+                                                  mapDoc.getElementById('title' + id);
+                            if (fallbackTitle) name = fallbackTitle.textContent.trim().split('\n')[0];
+                        }
+
                         const isCompleted = p.classList.contains('learningmap-place-visited') || p.classList.contains('learningmap-visited');
 
-                        placeMap[numericId] = { id: numericId, name: name, link: link, completed: isCompleted };
+                        placeMap[id] = { id: id, name: name.trim(), link: link.trim(), completed: isCompleted };
                     });
-                } catch(e) { console.warn(e); }
+                } catch(e) { console.warn("Error processing places:", e); }
 
-                // 2. Pfade auslesen
+                // 2. Pfad-Analyse (Defensiver Fallback – überschreibt niemals exakte Direktfunde)
                 try {
                     const paths = mapDoc.querySelectorAll('#pathsGroup path, .learningmap-path');
                     paths.forEach(path => {
                         if (!path) return;
                         const idMatch = path.id ? path.id.match(/(\d+)\D+(\d+)/) : null;
                         const titleEl = path.querySelector('title') || path;
-                        const titleText = titleEl ? (titleEl.textContent || titleEl.getAttribute('title') || titleEl.getAttribute('data-title') || '') : '';
+                        const titleText = titleEl ? (titleEl.textContent || titleEl.getAttribute('title') || '') : '';
 
-                        if (titleText) {
+                        if (titleText && idMatch) {
                             const nameMatches = titleText.match(/"([^"]+)"/g);
                             if (nameMatches && nameMatches.length >= 2) {
                                 const nameA = nameMatches[0].replace(/^"|"$/g, '').trim();
                                 const nameB = nameMatches[1].replace(/^"|"$/g, '').trim();
 
-                                if (idMatch) {
-                                    const idA = idMatch[1];
-                                    const idB = idMatch[2];
-                                    if (idA) {
-                                        if (!placeMap[idA]) placeMap[idA] = { id: idA, name: nameA, link: '', completed: false };
-                                        else if (!placeMap[idA].name) placeMap[idA].name = nameA;
-                                    }
-                                    if (idB) {
-                                        if (!placeMap[idB]) placeMap[idB] = { id: idB, name: nameB, link: '', completed: false };
-                                        else if (!placeMap[idB].name) placeMap[idB].name = nameB;
-                                    }
-                                }
+                                const idA = idMatch[1];
+                                const idB = idMatch[2];
+                                if (idA && placeMap[idA] && !placeMap[idA].name) placeMap[idA].name = nameA;
+                                if (idB && placeMap[idB] && !placeMap[idB].name) placeMap[idB].name = nameB;
                             }
                         }
                     });
-                } catch(e) { console.warn(e); }
+                } catch(e) { console.warn("Error processing paths:", e); }
 
-                // 3. Zu zeigende Aufgabenliste generieren & Duplikate filtern
+                // 3. Ergebnisliste konsolidieren & Fallback-Links bei Kursseite ermitteln
                 const tasks = [];
                 try {
+                    const resolveFallbackLink = (taskName) => {
+                        if (!taskName) return '';
+                        const mainContent = document.querySelectorAll('.course-content, #region-main, .site-main');
+                        let courseLinks = [];
+                        
+                        if (mainContent.length > 0) {
+                            mainContent.forEach(c => courseLinks = courseLinks.concat(Array.from(c.querySelectorAll('a[href*="/mod/"]'))));
+                        } else {
+                            courseLinks = Array.from(document.querySelectorAll('a[href*="/mod/"]'));
+                        }
+                        
+                        const match = courseLinks.find(a => {
+                            const h = a.getAttribute('href') || '';
+                            const t = a.innerText || a.textContent || '';
+                            return !h.includes('/mod/learningmap/') && t.trim().toLowerCase() === taskName.trim().toLowerCase();
+                        });
+                        return match ? (match.getAttribute('href') || '') : '';
+                    };
+
                     Object.values(placeMap).forEach(p => {
                         if (p && p.name && p.name.length > 2) {
-                            if (!tasks.some(t => t.name === p.name)) tasks.push({ name: p.name, link: p.link, completed: p.completed });
-                        }
-                    });
-
-                    const paths = mapDoc.querySelectorAll('#pathsGroup path, .learningmap-path');
-                    paths.forEach(path => {
-                        if (!path) return;
-                        const titleEl = path.querySelector('title') || path;
-                        const titleText = titleEl ? (titleEl.textContent || titleEl.getAttribute('title') || '') : '';
-                        if (titleText) {
-                            const matches = titleText.match(/"([^"]+)"/g);
-                            if (matches) {
-                                matches.forEach(m => {
-                                    const cleanName = m.replace(/^"|"$/g, '').trim();
-                                    if (cleanName && cleanName.length > 2 && !tasks.some(t => t.name === cleanName)) {
-                                        const matchingPlace = Object.values(placeMap).find(p => p && p.name === cleanName);
-                                        const link = matchingPlace ? matchingPlace.link : '';
-                                        const completed = matchingPlace ? matchingPlace.completed : false;
-                                        tasks.push({ name: cleanName, link: link, completed: completed });
-                                    }
-                                });
+                            if (!p.link) p.link = resolveFallbackLink(p.name);
+                            if (p.link && !p.link.startsWith('http')) p.link = window.location.origin + (p.link.startsWith('/') ? '' : '/') + p.link;
+                            
+                            if (!tasks.some(t => t.name === p.name)) {
+                                tasks.push({ name: p.name, link: p.link, completed: p.completed });
                             }
                         }
                     });
-                } catch(e) { console.warn(e); }
+                } catch(e) { console.warn("Error building task list:", e); }
 
                 return tasks;
             };
