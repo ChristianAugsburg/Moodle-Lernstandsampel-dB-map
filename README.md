@@ -83,6 +83,20 @@ Kopiere diesen Code in die **Listenansicht** deiner Datenbank, damit das Widget 
 
 Das Widget erkennt automatisch Bearbeitungsrechte. Über den Button "👨‍🏫 Auswertung" erhältst du eine Live-Übersicht der Schülerergebnisse direkt im Kurs-Interface.
 
+## 🤖 KI-Unterstützung & Secure Coding (AI Disclosure)
+
+Dieses Dashboard und die zugehörigen Skripte wurden unter Unterstützung von Künstlicher Intelligenz (KI) entwickelt und optimiert. Bei der Generierung und dem Refactoring des Codes wurde ein kompromissloser Fokus auf **IT-Sicherheit (Secure Coding) im Bildungsbereich (LMS/Moodle/ByCS)** gelegt.
+
+### Implementierte Sicherheits- & Stabilitätsstandards:
+
+* **Strikte XSS-Prävention (Never Trust User Input):** Alle dynamischen Daten (wie Schülernamen aus der Datenbank, Aufgabentitel der Lernlandkarte und Status-Werte) durchlaufen vor der DOM-Injektion eine explizite Maskierungsfunktion (`escapeHTML()`). Dies verhindert effektiv DOM-basierte und Stored-XSS-Angriffe über manipulierte Moodle-Profilnamen oder Freitexte.
+* **Sichere Event-Handler:** Die Übergabe von Parametern an die Speicher-Funktionen ist über `JSON.stringify()` gekapselt. Sonderzeichen oder Hochkommas (z. B. Apostrophe in Aufgabennamen) führen nicht mehr zu JavaScript-Syntaxfehlern oder Attribut-Brüchen im HTML-Stream.
+* **Defensives Error-Handling:** Alle kritischen DOM-Abfragen und RegEx-Matches (z. B. beim Scannen der Moodle-Aktivitäts-IDs) sind gegen `null`-Werte abgesichert. Das Skript fängt strukturelle Änderungen des LMS oder abgelaufene Sessions ab, ohne mit einem `TypeError` abzustürzen.
+* **Traffic- & Performance-Schutz:** Der Code verzichtet vollständig auf aggressives, automatisiertes Polling (`setInterval`). Stattdessen wird ein defensiver `MutationObserver` genutzt, um asynchron nachzuladende Kurs-Elemente ressourcenschonend zu erkennen und die Last auf den LMS-Server zu minimieren.
+* **Scope-Isolation:** Durch die strikte Kapselung von Variablen und Funktionen innerhalb von IIFEs (Immediately Invoked Function Expressions) und angepassten Namensräumen (`-main`-Suffixe) ist der Code vollkommen konfliktfrei parallel zu anderen Moodle-Blöcken auf derselben Seite einsetzbar.
+
+_Hinweis für Administratoren: Trotz strenger Einhaltung von Secure-Coding-Richtlinien bei der KI-gestützten Entwicklung wird empfohlen, den Code bei größeren Moodle-Core-Updates auf strukturelle Kompatibilität zu prüfen._
+
 📄 Lizenz
 
 Dieses Projekt ist unter der GNU General Public License v3.0 (GPL-3.0) lizenziert.
