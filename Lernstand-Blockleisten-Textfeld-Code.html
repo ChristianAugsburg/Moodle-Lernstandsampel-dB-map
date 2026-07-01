@@ -36,9 +36,9 @@
 <p>
     <script>
         (function() {
-            // Holt sich die Konfigurationsdaten von ganz oben
             const CONFIG = window.APP_CONFIG;
             window.teacherData = {}; 
+            const ridCache = {}; // Cache im RAM für die aktuelle Session
             const isTeacher = !!document.querySelector('a[href*="templates.php"]') || document.body.classList.contains('editing');
 
             // Regel 1: Zentrale, sichere Maskierung gegen XSS
@@ -50,6 +50,17 @@
                     .replace(/>/g, '&gt;')
                     .replace(/"/g, '&quot;')
                     .replace(/'/g, '&#039;');
+            }
+
+            // LÖSUNG FÜR GERÄTEWECHSEL/DUPLIKATE: 
+            // Zerlegt Namen in Einzelteile und sortiert sie. Macht "Max Mustermann" und "Mustermann, Max" absolut identisch!
+            function normalizeAndSortName(name) {
+                if (!name) return '';
+                return name.toLowerCase()
+                    .replace(/[^a-z0-9 ]/g, '') // Behalte Leerzeichen für Split
+                    .split(/\s+/)
+                    .sort()
+                    .join('');
             }
 
             function deepScanIDs() {
@@ -92,11 +103,8 @@
             window.copyConfig = function() {
                 const codeEl = document.getElementById('config-copy-field');
                 if (!codeEl) return;
-                const text = codeEl.innerText;
-                navigator.clipboard.writeText(text).then(() => {
+                navigator.clipboard.writeText(codeEl.innerText).then(() => {
                     alert("Config kopiert! Jetzt oben im Skript einfügen.");
-                }).catch(err => {
-                    console.error("Copy failed", err);
                 });
             };
 
@@ -122,15 +130,19 @@
                 let myLatest = {};
 
                 try {
-                    const currentUserName = document.querySelector('.userbutton .usertext')?.innerText?.trim();
-                    const dbRes = await fetch(`${window.location.origin}/mod/data/view.php?id=${CONFIG.DATENBANK_MODUL_ID}`);
+                    const currentUserName = window.M?.cfg?.userfullname
+                                         || document.querySelector('.userbutton .usertext')?.innerText?.trim()
+                                         || document.querySelector('.usermenu .usertext')?.innerText?.trim()
+                                         || "";
+                    
+                    const dbRes = await fetch(`${window.location.origin}/mod/data/view.php?id=${CONFIG.DATENBANK_MODUL_ID}&mode=list&perpage=1000`);
                     
                     if (dbRes.ok) {
                         const dbDoc = new DOMParser().parseFromString(await dbRes.text(), 'text/html');
                         
                         dbDoc.querySelectorAll('.db-reihe').forEach(row => {
-                            const userEl = row.querySelector('.db-user');
-                            const taskEl = row.querySelector('.db-task');
+                            const userEl = row.querySelector('.db-user') || row.querySelector('.template-user');
+                            const taskEl = row.querySelector('.db-task') || row.querySelector('.db-aufgabe');
                             const statusEl = row.querySelector('.db-status');
                             
                             if (userEl && taskEl) {
@@ -140,8 +152,17 @@
                                 
                                 if (!window.teacherData[user]) window.teacherData[user] = {};
                                 window.teacherData[user][task] = status;
-                                if (user === currentUserName || user === "Ich" || !currentUserName) {
+                                
+                                // Plattergeräte-sicherer Namensabgleich über tokenisierte Sortierung
+                                if (normalizeAndSortName(user) === normalizeAndSortName(currentUserName) || user === "Ich" || !currentUserName) {
                                     myLatest[task] = status;
+                                    
+                                    // Existierende rid aus Moodle-Struktur auslesen und cachen
+                                    const anyLink = row.querySelector('a[href*="rid="]');
+                                    if (anyLink) {
+                                        const m = anyLink.href.match(/[?&]rid=(\d+)/);
+                                        if (m) ridCache[task] = m[1];
+                                    }
                                 }
                             }
                         });
@@ -185,10 +206,9 @@
 
                     let html = "";
                     tasksToShow.forEach(txt => {
-                        const status = myLatest[txt] || localStorage.getItem('moodle_status_' + CONFIG.DATENBANK_MODUL_ID + '_' + txt) || '';
+                        const status = myLatest[txt] || '';
                         const op = (s, target) => (s ? (s === target ? '1' : '0.2') : '1');
                         
-                        // Generiert sichere JSON-Strings für Event-Handler, um SyntaxError durch Hochkommas im Aufgabennamen zu verhindern
                         const safeTaskJson = escapeHTML(JSON.stringify(txt));
 
                         html += `
@@ -208,17 +228,63 @@
 
             window.save = async function(task, emo, btn) {
                 if (!btn || !CONFIG) return;
+                const group = btn.parentElement;
+                const buttons = group.querySelectorAll('button');
+                
+                let isSaving = false;
+                buttons.forEach(b => { if (b.getAttribute('data-saving') === 'true') isSaving = true; });
+                if (isSaving) return;
+
+                btn.setAttribute('data-saving', 'true');
                 btn.innerHTML = "⏳";
+                buttons.forEach(b => b.style.pointerEvents = 'none');
+
                 try {
-                    const res = await fetch(`${window.location.origin}/mod/data/view.php?id=${CONFIG.DATENBANK_MODUL_ID}`);
-                    if (!res.ok) throw new Error("DB res failed");
-                    
-                    const resText = await res.text();
-                    const dIdMatch = resText.match(/[?&]d=(\d+)/);
-                    if (!dIdMatch) throw new Error("Keine d-ID gefunden"); 
-                    
-                    const dId = dIdMatch[1];
-                    const fRes = await fetch(`${window.location.origin}/mod/data/edit.php?d=${dId}`);
+                    let dId = window.savedDId || null;
+                    let rid = ridCache[task] || null;
+
+                    // Fallback: Falls Cache leer ist (z.B. nach Gerätewechsel), lade DB frisch und ermittle rid robust via Token-Matching
+                    if (!dId || !rid) {
+                        const res = await fetch(`${window.location.origin}/mod/data/view.php?id=${CONFIG.DATENBANK_MODUL_ID}&mode=list&perpage=1000`);
+                        if (!res.ok) throw new Error("DB res failed");
+                        
+                        const resText = await res.text();
+                        const dIdMatch = resText.match(/[?&]d=(\d+)/);
+                        if (dIdMatch) {
+                            dId = dIdMatch[1];
+                            window.savedDId = dId;
+                        }
+
+                        const dbDoc = new DOMParser().parseFromString(resText, 'text/html');
+                        const currentUserName = window.M?.cfg?.userfullname
+                                             || document.querySelector('.userbutton .usertext')?.innerText?.trim()
+                                             || document.querySelector('.usermenu .usertext')?.innerText?.trim()
+                                             || "";
+
+                        dbDoc.querySelectorAll('.db-reihe').forEach(row => {
+                            const userEl = row.querySelector('.db-user') || row.querySelector('.template-user');
+                            const rowTaskEl = row.querySelector('.db-task') || row.querySelector('.db-aufgabe');
+                            
+                            if (rowTaskEl && rowTaskEl.innerText.trim() === task) {
+                                const user = userEl ? userEl.innerText.trim() : '';
+                                if (normalizeAndSortName(user) === normalizeAndSortName(currentUserName) || user === "Ich" || !currentUserName || !user) {
+                                    const anyLink = row.querySelector('a[href*="rid="]');
+                                    if (anyLink) {
+                                        const m = anyLink.href.match(/[?&]rid=(\d+)/);
+                                        if (m) {
+                                            rid = m[1];
+                                            ridCache[task] = rid;
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    if (!dId) throw new Error("Keine d-ID ermittelbar");
+
+                    const editUrl = `${window.location.origin}/mod/data/edit.php?d=${dId}` + (rid ? `&rid=${rid}` : '');
+                    const fRes = await fetch(editUrl);
                     if (!fRes.ok) throw new Error("Edit form failed");
                     
                     const fDoc = new DOMParser().parseFromString(await fRes.text(), 'text/html');
@@ -230,15 +296,23 @@
                     if (mapping.status) fd.append(mapping.status, emo);
                     fd.append('saveandview', 'Speichern');
                     
-                    await fetch(`${window.location.origin}/mod/data/edit.php?d=${dId}`, { method: 'POST', body: fd });
-                    localStorage.setItem('moodle_status_' + CONFIG.DATENBANK_MODUL_ID + '_' + task, emo);
+                    const response = await fetch(editUrl, { method: 'POST', body: fd });
+                    
+                    if (response.url) {
+                        const m = response.url.match(/[?&]rid=(\d+)/);
+                        if (m) ridCache[task] = m[1];
+                    }
                     
                     btn.innerHTML = emo;
                     btn.style.background = (emo === '🟢' ? '#d4edda' : (emo === '🔴' ? '#f8d7da' : '#fff3cd'));
-                    if (btn.parentElement) {
-                        btn.parentElement.querySelectorAll('button').forEach(b => b.style.opacity = (b === btn ? "1" : "0.2"));
-                    }
-                } catch (e) { console.error(e); btn.innerHTML = "❌"; }
+                    buttons.forEach(b => b.style.opacity = (b === btn ? "1" : "0.2"));
+                } catch (e) { 
+                    console.error(e); 
+                    btn.innerHTML = "❌"; 
+                } finally {
+                    buttons.forEach(b => b.style.pointerEvents = 'auto');
+                    btn.removeAttribute('data-saving');
+                }
             };
 
             window.toggleTeacherView = function() {
