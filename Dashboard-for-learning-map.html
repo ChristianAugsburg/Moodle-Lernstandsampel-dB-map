@@ -1,47 +1,54 @@
 <p>
     <script>
         // =========================================================================
-        // KONFIGURATION (GANZ OBEN – HIER EDITIEREN)
+        // KONFIGURATION (GANZ OBEN – HIER EDITIEREN wenn Lernampel konfiguriert.)
         // =========================================================================
         window.APP_CONFIG = {
-            DATENBANK_MODUL_ID: "  ", // Deine Ampel-Datenbank-ID
-            LERNLANDKARTE_ID: "  ",   // Deine Lernlandkarten-ID
-            FELD_AUFGABE: "Aufgabe", 
+            DATENBANK_MODUL_ID: "", // Deine Ampel-Datenbank-ID
+            LERNLANDKARTE_ID: "",   // Deine Lernlandkarten-ID
+            FELD_AUFGABE: "Aufgabe",
             FELD_STATUS: "Status"
         };
     </script>
 </p>
 
-<div id="status-accordion" class="card shadow-sm border-0 mb-3" style="border-left: 5px solid #0055a5 !important; background: #fff;">
-    <div class="card-header bg-white p-0">
-        <div class="w-100 text-start d-flex justify-content-between align-items-center py-2 px-3">
-            <span class="text-primary fw-bold" style="font-size: 0.9rem;">🚀 Mein Lernfortschritt</span> 
-            <span id="load-info" class="badge bg-light text-muted border" style="font-size: 0.7rem;">Scan...</span>
-        </div>
-    </div>
-    <div class="card-body p-0">
-        <div id="dashboard-content" class="list-group list-group-flush"></div>
-        <div id="teacher-zone" class="p-2 bg-light border-top" style="display: none;">
-            <div id="id-finder-box" class="alert alert-info p-2 mb-2" style="display:none; font-size:0.7rem; border: 1px dashed #0055a5;">
-                <strong>🛠️ Admin-Konfiguration:</strong><br>
-                IDs gefunden! Kopiere diese Zeilen oben in dein Skript:<br>
-                <code id="config-copy-field" style="display:block; background:#eee; padding:5px; margin-top:5px; cursor:pointer; font-family:monospace;" onclick="copyConfig()">...</code>
+<div class="accordion mb-3" id="status-accordion-wrapper-main" style="max-width: 100%;">
+    <div class="accordion-item border-0 shadow-sm">
+        <h2 class="accordion-header" id="heading-status-main">
+            <button class="accordion-button collapsed bg-white p-2 px-3 text-primary fw-bold d-flex justify-content-between align-items-center" 
+                    type="button" 
+                    data-bs-toggle="collapse" 
+                    data-bs-target="#collapse-status-main" 
+                    aria-expanded="false" 
+                    aria-controls="collapse-status-main"
+                    style="font-size: 0.95rem; border-left: 5px solid #0055a5 !important; box-shadow: none;">
+                <span class="me-auto">🚀 Mein Lernfortschritt & Aufgaben</span>
+                <span id="load-info-main" class="badge bg-light text-muted border" style="font-size: 0.7rem; font-weight: normal;">Lädt...</span>
+            </button>
+        </h2>
+        <div id="collapse-status-main" class="accordion-collapse collapse" aria-labelledby="heading-status-main" data-bs-parent="#status-accordion-wrapper-main">
+            <div class="accordion-body p-0">
+                <div id="dashboard-content-main" class="list-group list-group-flush"></div>
+
+                <div id="teacher-zone-main" class="p-2 bg-light border-top" style="display: none;">
+                    <button onclick="toggleTeacherViewMain()" class="btn btn-sm btn-outline-secondary w-100">👨‍🏫 Auswertung & Admin</button>
+                    <div id="teacher-auswertung-main" class="mt-2" style="display: none;"></div>
+                </div>
             </div>
-            <button onclick="toggleTeacherView()" class="btn btn-sm btn-outline-secondary w-100">👨‍🏫 Auswertung & Admin</button>
-            <div id="teacher-auswertung" class="mt-2" style="display: none;"></div>
         </div>
     </div>
 </div>
 
 <p>
     <script>
-        (function() {
+        (function () {
             // Holt sich die Konfigurationsdaten von ganz oben
             const CONFIG = window.APP_CONFIG;
-            window.teacherData = {}; 
+            window.teacherDataMain = {};
+            let hasDatabase = !!(CONFIG && CONFIG.DATENBANK_MODUL_ID && CONFIG.DATENBANK_MODUL_ID.trim() !== "");
             const isTeacher = !!document.querySelector('a[href*="templates.php"]') || document.body.classList.contains('editing');
 
-            // Regel 1: Zentrale, sichere Maskierung gegen XSS
+            // Regel 1: Zentrale XSS-Maskierung
             function escapeHTML(str) {
                 if (!str) return '';
                 return str.toString()
@@ -52,220 +59,279 @@
                     .replace(/'/g, '&#039;');
             }
 
-            function deepScanIDs() {
-                if (!CONFIG) return false;
-                const wasEmpty = (!CONFIG.DATENBANK_MODUL_ID || !CONFIG.LERNLANDKARTE_ID);
-                
-                const findInMenu = (selector, keywords) => {
-                    const links = Array.from(document.querySelectorAll(`a[href*="${selector}"]`));
-                    const match = links.find(a => keywords.some(k => a.innerText.toLowerCase().includes(k.toLowerCase())));
-                    
-                    if (match) {
-                        const m = match.href.match(/id=(\d+)/);
-                        return m ? m[1] : null;
-                    }
-                    if (links.length > 0) {
-                        const m = links[0].href.match(/id=(\d+)/);
-                        return m ? m[1] : null;
-                    }
-                    return null;
-                };
-
-                const foundDB = findInMenu('/mod/data/', ["ampel", "lernstand", "fortschritt", "bewertung"]);
-                const foundMap = findInMenu('/mod/learningmap/', ["landkarte", "map", "weg", "plan"]);
-
-                if (!CONFIG.DATENBANK_MODUL_ID) CONFIG.DATENBANK_MODUL_ID = foundDB;
-                if (!CONFIG.LERNLANDKARTE_ID) CONFIG.LERNLANDKARTE_ID = foundMap;
-
-                if (isTeacher && foundDB && foundMap && wasEmpty) {
-                    const tz = document.getElementById('teacher-zone');
-                    const box = document.getElementById('id-finder-box');
-                    const code = document.getElementById('config-copy-field');
-                    
-                    if (tz) tz.style.display = 'block';
-                    if (box) box.style.display = 'block';
-                    if (code) code.innerText = `DATENBANK_MODUL_ID: "${foundDB}",\nLERNLANDKARTE_ID: "${foundMap}",`;
-                }
-                return !!(CONFIG.DATENBANK_MODUL_ID && CONFIG.LERNLANDKARTE_ID);
+            // Duplikat-Schutz bei Gerätewechsel (Namens-Normalisierung)
+            function normalizeAndSortName(name) {
+                if (!name) return '';
+                return name.toLowerCase()
+                    .replace(/[^a-z0-9 ]/g, '')
+                    .split(/\s+/)
+                    .sort()
+                    .join('');
             }
 
-            window.copyConfig = function() {
-                const codeEl = document.getElementById('config-copy-field');
-                if (!codeEl) return;
-                const text = codeEl.innerText;
-                navigator.clipboard.writeText(text).then(() => {
-                    alert("Config kopiert! Jetzt oben im Skript einfügen.");
-                }).catch(err => {
-                    console.error("Copy failed", err);
-                });
+            async function checkIDs() {
+                if (!CONFIG) return false;
+                const urlMapMatch = window.location.href.match(/mod\/learningmap\/[a-z]+\.php\?id=(\d+)/) || window.location.href.match(/mod\/learningmap\/[a-z]+\.php\?.*&id=(\d+)/);
+                if (urlMapMatch) CONFIG.LERNLANDKARTE_ID = urlMapMatch[1];
+
+                const urlDbMatch = window.location.href.match(/mod\/data\/[a-z]+\.php\?id=(\d+)/) || window.location.href.match(/mod\/data\/[a-z]+\.php\?.*&id=(\d+)/);
+                if (urlDbMatch) {
+                    CONFIG.DATENBANK_MODUL_ID = urlDbMatch[1];
+                    hasDatabase = true;
+                }
+                return !!CONFIG.LERNLANDKARTE_ID;
+            }
+
+            // Vollständige Suchlogik (Places & Paths)
+            const extractTasksFromMap = (mapDoc) => {
+                if (!mapDoc) return [];
+                const placeMap = {};
+
+                // 1. Plätze auslesen
+                try {
+                    const places = mapDoc.querySelectorAll('.learningmap-place');
+                    places.forEach(p => {
+                        if (!p) return;
+                        const matchId = p.id ? p.id.match(/\d+/) : null;
+                        const numericId = matchId ? matchId[0] : '';
+                        if (!numericId) return;
+
+                        const linkEl = p.closest('a') || p.querySelector('a');
+                        let link = linkEl ? linkEl.getAttribute('href') : (p.getAttribute('href') || p.getAttribute('data-url') || '');
+                        if (link && !link.startsWith('http')) link = window.location.origin + (link.startsWith('/') ? '' : '/') + link;
+
+                        let txt = '';
+                        let titleEl = mapDoc.getElementById('title-' + numericId) ||
+                                      mapDoc.getElementById('text-' + numericId) ||
+                                      mapDoc.getElementById('title' + numericId) ||
+                                      mapDoc.getElementById('text' + numericId) ||
+                                      mapDoc.getElementById('title-place-' + numericId) ||
+                                      mapDoc.getElementById('text-place-' + numericId);
+
+                        if (!titleEl) titleEl = p.querySelector('title') || p.querySelector('text');
+                        if (titleEl) txt = titleEl.textContent;
+                        else txt = p.getAttribute('title') || p.getAttribute('data-original-title') || p.getAttribute('aria-label') || '';
+
+                        const name = txt ? txt.trim().split('\n')[0] : '';
+                        const isCompleted = p.classList.contains('learningmap-place-visited') || p.classList.contains('learningmap-visited');
+
+                        placeMap[numericId] = { id: numericId, name: name, link: link, completed: isCompleted };
+                    });
+                } catch(e) { console.warn(e); }
+
+                // 2. Pfade auslesen
+                try {
+                    const paths = mapDoc.querySelectorAll('#pathsGroup path, .learningmap-path');
+                    paths.forEach(path => {
+                        if (!path) return;
+                        const idMatch = path.id ? path.id.match(/(\d+)\D+(\d+)/) : null;
+                        const titleEl = path.querySelector('title') || path;
+                        const titleText = titleEl ? (titleEl.textContent || titleEl.getAttribute('title') || titleEl.getAttribute('data-title') || '') : '';
+
+                        if (titleText) {
+                            const nameMatches = titleText.match(/"([^"]+)"/g);
+                            if (nameMatches && nameMatches.length >= 2) {
+                                const nameA = nameMatches[0].replace(/^"|"$/g, '').trim();
+                                const nameB = nameMatches[1].replace(/^"|"$/g, '').trim();
+
+                                if (idMatch) {
+                                    const idA = idMatch[1];
+                                    const idB = idMatch[2];
+                                    if (idA) {
+                                        if (!placeMap[idA]) placeMap[idA] = { id: idA, name: nameA, link: '', completed: false };
+                                        else if (!placeMap[idA].name) placeMap[idA].name = nameA;
+                                    }
+                                    if (idB) {
+                                        if (!placeMap[idB]) placeMap[idB] = { id: idB, name: nameB, link: '', completed: false };
+                                        else if (!placeMap[idB].name) placeMap[idB].name = nameB;
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } catch(e) { console.warn(e); }
+
+                // 3. Zu zeigende Aufgabenliste generieren & Duplikate filtern
+                const tasks = [];
+                try {
+                    Object.values(placeMap).forEach(p => {
+                        if (p && p.name && p.name.length > 2) {
+                            if (!tasks.some(t => t.name === p.name)) tasks.push({ name: p.name, link: p.link, completed: p.completed });
+                        }
+                    });
+
+                    const paths = mapDoc.querySelectorAll('#pathsGroup path, .learningmap-path');
+                    paths.forEach(path => {
+                        if (!path) return;
+                        const titleEl = path.querySelector('title') || path;
+                        const titleText = titleEl ? (titleEl.textContent || titleEl.getAttribute('title') || '') : '';
+                        if (titleText) {
+                            const matches = titleText.match(/"([^"]+)"/g);
+                            if (matches) {
+                                matches.forEach(m => {
+                                    const cleanName = m.replace(/^"|"$/g, '').trim();
+                                    if (cleanName && cleanName.length > 2 && !tasks.some(t => t.name === cleanName)) {
+                                        const matchingPlace = Object.values(placeMap).find(p => p && p.name === cleanName);
+                                        const link = matchingPlace ? matchingPlace.link : '';
+                                        const completed = matchingPlace ? matchingPlace.completed : false;
+                                        tasks.push({ name: cleanName, link: link, completed: completed });
+                                    }
+                                });
+                            }
+                        }
+                    });
+                } catch(e) { console.warn(e); }
+
+                return tasks;
             };
 
-            async function getFieldMapping(fDoc) {
-                const mapping = { aufgabe: null, status: null };
-                fDoc.querySelectorAll('label').forEach(label => {
-                    const text = label.innerText.toLowerCase();
-                    const forId = label.getAttribute('for');
-                    const input = forId ? fDoc.getElementById(forId) : null;
-                    if (input && input.name?.startsWith('field_')) {
-                        if (text.includes(CONFIG.FELD_AUFGABE.toLowerCase())) mapping.aufgabe = input.name;
-                        if (text.includes(CONFIG.FELD_STATUS.toLowerCase())) mapping.status = input.name;
-                    }
-                });
-                return mapping;
-            }
-
             async function loadDashboard() {
-                const content = document.getElementById('dashboard-content');
-                const info = document.getElementById('load-info');
+                const content = document.getElementById('dashboard-content-main');
+                const info = document.getElementById('load-info-main');
                 if (!content || !info || !CONFIG) return; 
                 
                 let myLatest = {};
 
-                try {
-                    const currentUserName = document.querySelector('.userbutton .usertext')?.innerText?.trim();
-                    const dbRes = await fetch(`${window.location.origin}/mod/data/view.php?id=${CONFIG.DATENBANK_MODUL_ID}`);
-                    
-                    if (dbRes.ok) {
-                        const dbDoc = new DOMParser().parseFromString(await dbRes.text(), 'text/html');
+                if (hasDatabase) {
+                    try {
+                        const currentUserName = window.M?.cfg?.userfullname 
+                                             || document.querySelector('.userbutton .usertext')?.innerText?.trim() 
+                                             || "";
                         
-                        dbDoc.querySelectorAll('.db-reihe').forEach(row => {
-                            const userEl = row.querySelector('.db-user');
-                            const taskEl = row.querySelector('.db-task');
-                            const statusEl = row.querySelector('.db-status');
-                            
-                            if (userEl && taskEl) {
-                                const user = userEl.innerText.trim();
-                                const task = taskEl.innerText.trim();
-                                const status = statusEl ? statusEl.innerText.trim() : '';
+                        const dbRes = await fetch(`${window.location.origin}/mod/data/view.php?id=${CONFIG.DATENBANK_MODUL_ID}&mode=list&perpage=1000`);
+                        if (dbRes.ok) {
+                            const dbDoc = new DOMParser().parseFromString(await dbRes.text(), 'text/html');
+                            dbDoc.querySelectorAll('.db-reihe').forEach(row => {
+                                const userEl = row.querySelector('.db-user') || row.querySelector('.template-user');
+                                const taskEl = row.querySelector('.db-task') || row.querySelector('.db-aufgabe');
+                                const statusEl = row.querySelector('.db-status');
                                 
-                                if (!window.teacherData[user]) window.teacherData[user] = {};
-                                window.teacherData[user][task] = status;
-                                if (user === currentUserName || user === "Ich" || !currentUserName) {
-                                    myLatest[task] = status;
+                                if (userEl && taskEl) {
+                                    const user = userEl.innerText.trim();
+                                    const task = taskEl.innerText.trim();
+                                    const status = statusEl ? statusEl.innerText.trim() : '';
+                                    
+                                    if (!window.teacherDataMain[user]) window.teacherDataMain[user] = {};
+                                    window.teacherDataMain[user][task] = status;
+                                    
+                                    if (normalizeAndSortName(user) === normalizeAndSortName(currentUserName) || user === "Ich" || !currentUserName) {
+                                        myLatest[task] = status;
+                                    }
                                 }
+                            });
+                            if (isTeacher && dbDoc.querySelector('a[href*="templates.php"]')) {
+                                const tz = document.getElementById('teacher-zone-main');
+                                if (tz) tz.style.display = 'block';
                             }
-                        });
+                        }
+                    } catch (e) {
+                        hasDatabase = false;
+                    }
+                }
 
-                        if (dbDoc.querySelector('a[href*="templates.php"]')) {
-                            const tz = document.getElementById('teacher-zone');
-                            if (tz) tz.style.display = 'block';
+                try {
+                    let mapDoc = document;
+                    let tasksToShow = extractTasksFromMap(mapDoc);
+
+                    if (tasksToShow.length === 0 && !window.location.href.includes('mod/learningmap/')) {
+                        const mapRes = await fetch(`${window.location.origin}/mod/learningmap/view.php?id=${CONFIG.LERNLANDKARTE_ID}`);
+                        if (mapRes.ok) {
+                            mapDoc = new DOMParser().parseFromString(await mapRes.text(), 'text/html');
+                            tasksToShow = extractTasksFromMap(mapDoc);
                         }
                     }
 
-                    const mapRes = await fetch(`${window.location.origin}/mod/learningmap/view.php?id=${CONFIG.LERNLANDKARTE_ID}`);
-                    if (!mapRes.ok) throw new Error("Map load failed");
-                    
-                    const mapDoc = new DOMParser().parseFromString(await mapRes.text(), 'text/html');
-                    const places = mapDoc.querySelectorAll('.learningmap-place.learningmap-reachable, .learningmap-place.learningmap-visited');
-                    let allTasks = [];
-                    
-                    places.forEach(p => {
-                        const titleEl = mapDoc.querySelector('#title'+p.id) || mapDoc.querySelector('#text'+p.id);
-                        const txt = titleEl ? titleEl.textContent : '';
-                        if (txt && txt.trim().length > 2) {
-                            let name = txt.trim().split('\n')[0];
-                            if (!allTasks.includes(name)) allTasks.push(name);
-                        }
-                    });
-
-                    allTasks.sort((a, b) => a.localeCompare(b, undefined, {numeric: true, sensitivity: 'base'}));
-
-                    const isMap = window.location.href.includes('learningmap') || window.location.href.includes(CONFIG.LERNLANDKARTE_ID);
-                    let tasksToShow = isMap ? allTasks : [];
-
-                    if (!isMap) {
-                        const headingEl = document.querySelector('h1');
-                        const pageHeading = headingEl ? headingEl.innerText : "";
-                        const searchArea = (document.title + " " + pageHeading).toLowerCase();
-                        const found = allTasks.filter(t => searchArea.includes(t.toLowerCase())).sort((a, b) => b.length - a.length)[0];
-                        tasksToShow = found ? [found] : [];
-                    }
-
-                    info.innerText = tasksToShow.length > 1 ? "Alle ("+tasksToShow.length+")" : "Fokus";
+                    tasksToShow.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+                    info.innerText = hasDatabase ? `Sichtbar: ${tasksToShow.length}` : `Lokal aktiv: ${tasksToShow.length}`;
 
                     let html = "";
-                    tasksToShow.forEach(txt => {
-                        const status = myLatest[txt] || localStorage.getItem('moodle_status_' + CONFIG.DATENBANK_MODUL_ID + '_' + txt) || '';
-                        const op = (s, target) => (s ? (s === target ? '1' : '0.2') : '1');
-                        
-                        // Generiert sichere JSON-Strings für Event-Handler, um SyntaxError durch Hochkommas im Aufgabennamen zu verhindern
-                        const safeTaskJson = escapeHTML(JSON.stringify(txt));
+                    tasksToShow.forEach(taskObj => {
+                        const txt = taskObj.name;
+                        const url = taskObj.link;
+                        const isCompleted = taskObj.completed;
+                        const status = hasDatabase ? (myLatest[txt] || '') : '';
+
+                        let dotColor = '#dee2e6'; 
+                        if (status === '🟢') dotColor = '#28a745';
+                        if (status === '🟠') dotColor = '#fd7e14';
+                        if (status === '🔴') dotColor = '#dc3545';
 
                         html += `
-                      <div class="list-group-item d-flex align-items-center justify-content-between px-3 py-2 border-0 border-bottom">
-                        <div style="font-size:0.75rem; font-weight:bold; flex:1; padding-right:5px; line-height:1.2;">${escapeHTML(txt)}</div>
-                        <div class="btn-group">
-                          <button onclick="save(${safeTaskJson},'🔴',this)" class="btn btn-sm border" style="background:${status==='🔴'?'#f8d7da':'#fff'}; opacity:${op(status,'🔴')};">🔴</button>
-                          <button onclick="save(${safeTaskJson},'🟠',this)" class="btn btn-sm border" style="background:${status==='🟠'?'#fff3cd':'#fff'}; opacity:${op(status,'🟠')};">🟠</button>
-                          <button onclick="save(${safeTaskJson},'🟢',this)" class="btn btn-sm border" style="background:${status==='🟢'?'#d4edda':'#fff'}; opacity:${op(status,'🟢')};">🟢</button>
-                        </div>
-                      </div>`;
+              <div class="list-group-item d-flex align-items-center justify-content-between px-3 py-2 border-0 border-bottom">
+                <div class="d-flex align-items-center" style="flex: 1; padding-right: 10px; min-width: 0;">
+                  <span class="moodle-status-badge me-2" style="font-size: 0.95rem; line-height: 1; display: inline-block; flex-shrink: 0;" title="${isCompleted ? 'Moodle: Erledigt' : 'Moodle: Offen'}">
+                    ${isCompleted ? '✅' : '📖'}
+                  </span>
+                  ${hasDatabase ? `<span class="status-dot" style="width: 10px; height: 10px; background-color: ${dotColor}; border-radius: 50%; display: inline-block; margin-right: 10px; flex-shrink: 0; box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);"></span>` : ''}
+                  <a href="${escapeHTML(url || '#')}" target="_blank" class="fw-bold text-dark text-decoration-none text-truncate dashboard-link-main" style="font-size: 0.85rem; line-height: 1.2;" title="Öffne: ${escapeHTML(txt)}">
+                    ${escapeHTML(txt)}
+                  </a>
+                </div>
+                ${hasDatabase && status ? `
+                <div class="flex-shrink-0 px-2 py-1 rounded small border bg-light" style="font-size: 0.75rem; font-weight: bold;">
+                  Status: ${escapeHTML(status)}
+                </div>
+                ` : ''}
+              </div>`;
                     });
-                    content.innerHTML = html || "<div class='p-3 small text-muted'>Keine Aufgabe erkannt.</div>";
 
+                    content.innerHTML = html || "<div class='p-3 small text-muted'>Aktuell keine Aufgaben sichtbar.</div>";
+
+                    if (!document.getElementById('dashboard-hover-styles-main')) {
+                        const style = document.createElement('style');
+                        style.id = 'dashboard-hover-styles-main';
+                        style.innerHTML = '.dashboard-link-main:hover { text-decoration: underline !important; color: #0055a5 !important; }';
+                        document.head.appendChild(style);
+                    }
                 } catch (e) { info.innerText = "Fehler"; console.error(e); }
             }
 
-            window.save = async function(task, emo, btn) {
-                if (!btn || !CONFIG) return;
-                btn.innerHTML = "⏳";
-                try {
-                    const res = await fetch(`${window.location.origin}/mod/data/view.php?id=${CONFIG.DATENBANK_MODUL_ID}`);
-                    if (!res.ok) throw new Error("DB res failed");
-                    
-                    const resText = await res.text();
-                    const dIdMatch = resText.match(/[?&]d=(\d+)/);
-                    if (!dIdMatch) throw new Error("Keine d-ID gefunden"); 
-                    
-                    const dId = dIdMatch[1];
-                    const fRes = await fetch(`${window.location.origin}/mod/data/edit.php?d=${dId}`);
-                    if (!fRes.ok) throw new Error("Edit form failed");
-                    
-                    const fDoc = new DOMParser().parseFromString(await fRes.text(), 'text/html');
-                    const mapping = await getFieldMapping(fDoc);
-                    const fd = new FormData();
-                    
-                    fDoc.querySelectorAll('input[type="hidden"]').forEach(i => fd.append(i.name, i.value));
-                    if (mapping.aufgabe) fd.append(mapping.aufgabe, task);
-                    if (mapping.status) fd.append(mapping.status, emo);
-                    fd.append('saveandview', 'Speichern');
-                    
-                    await fetch(`${window.location.origin}/mod/data/edit.php?d=${dId}`, { method: 'POST', body: fd });
-                    localStorage.setItem('moodle_status_' + CONFIG.DATENBANK_MODUL_ID + '_' + task, emo);
-                    
-                    btn.innerHTML = emo;
-                    btn.style.background = (emo === '🟢' ? '#d4edda' : (emo === '🔴' ? '#f8d7da' : '#fff3cd'));
-                    if (btn.parentElement) {
-                        btn.parentElement.querySelectorAll('button').forEach(b => b.style.opacity = (b === btn ? "1" : "0.2"));
-                    }
-                } catch (e) { console.error(e); btn.innerHTML = "❌"; }
-            };
-
-            window.toggleTeacherView = function() {
-                const div = document.getElementById('teacher-auswertung');
+            window.toggleTeacherViewMain = function () {
+                const div = document.getElementById('teacher-auswertung-main');
                 if (!div) return;
                 
                 div.style.display = div.style.display === 'none' ? 'block' : 'none';
                 if (div.style.display === 'none') return;
 
                 let h = '<div class="list-group mt-2">';
-                const users = Object.keys(window.teacherData).sort();
+                const users = Object.keys(window.teacherDataMain).sort();
                 users.forEach(u => {
                     h += `<div class="list-group-item bg-primary text-white p-1 px-2 small">${escapeHTML(u)}</div>`;
-                    const tasks = Object.keys(window.teacherData[u]).sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
+                    const tasks = Object.keys(window.teacherDataMain[u]).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
                     tasks.forEach(t => {
-                        h += `<div class="list-group-item d-flex justify-content-between p-1 px-2 border-0 border-bottom" style="font-size:0.7rem;"><span>${escapeHTML(t)}</span><span>${escapeHTML(window.teacherData[u][t])}</span></div>`;
+                        h += `<div class="list-group-item d-flex justify-content-between p-1 px-2 border-0 border-bottom" style="font-size:0.7rem;"><span>${escapeHTML(t)}</span><span>${escapeHTML(window.teacherDataMain[u][t])}</span></div>`;
                     });
                 });
                 div.innerHTML = h + '</div>';
             };
 
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => {
-                    setTimeout(() => { if (deepScanIDs()) loadDashboard(); }, 500);
+            async function initDashboard() {
+                const info = document.getElementById('load-info-main');
+                if(!info) return; 
+                info.innerText = "Lade Map...";
+
+                try { await checkIDs(); } catch (e) {}
+
+                const observer = new MutationObserver(async () => {
+                    if (document.querySelectorAll('.learningmap-place').length > 0) {
+                        observer.disconnect();
+                        await loadDashboard();
+                    }
                 });
+                observer.observe(document.body, { childList: true, subtree: true });
+
+                if (document.querySelectorAll('.learningmap-place').length > 0) {
+                    observer.disconnect();
+                    await loadDashboard();
+                } else {
+                    setTimeout(async () => { observer.disconnect(); await loadDashboard(); }, 2500);
+                }
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => initDashboard());
             } else {
-                setTimeout(() => { if (deepScanIDs()) loadDashboard(); }, 500);
+                initDashboard();
             }
         })();
     </script>
